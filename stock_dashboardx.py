@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from prophet import Prophet
-
+import matplotlib.pyplot as plt
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -523,19 +523,29 @@ with tab_logs:
                     try:
                         target_chart_ticker = summary_df.iloc[0]['Ticker'] if not summary_df.empty else "AAPL"
                         chart_df = df_live[df_live['Ticker'] == target_chart_ticker].sort_values('Datetime')
-                        fig_export = go.Figure()
-                        fig_export.add_trace(go.Scatter(x=chart_df['Datetime'], y=chart_df['Close'], mode='lines+markers', line=dict(color='#00ffcc', width=2)))
-                        fig_export.update_layout(title=f"{target_chart_ticker} Market Trajectory", template='plotly_dark', paper_bgcolor='#121212', plot_bgcolor='#121212')
-                        chart_filename = "temp_market_chart.png"
-                        fig_export.write_image(chart_filename, engine="kaleido")
 
+                        # 1. NEW: Generate a stable, dark-themed chart using Matplotlib
+                        plt.style.use('dark_background')
+                        fig, ax = plt.subplots(figsize=(8, 4))
+                        ax.plot(chart_df['Datetime'], chart_df['Close'], color='#00ffcc', linewidth=2, marker='o', markersize=4)
+                        ax.set_title(f"{target_chart_ticker} Market Trajectory", color='white', pad=15)
+                        ax.grid(True, linestyle='--', alpha=0.3)
+                        ax.set_ylabel('Closing Price ($)')
+
+                        chart_filename = "temp_market_chart.png"
+                        plt.savefig(chart_filename, bbox_inches='tight', dpi=150, facecolor='#121212')
+                        plt.close(fig) # Free up container memory
+
+                        # 2. Build the data table
                         table_rows_html = ""
                         for _, row in summary_df.iterrows():
                             color = "#00ffcc" if row['% Change'] > 0 else "#ff4d4d"
                             table_rows_html += f"<tr><td style='padding: 12px; font-weight: bold;'>{row['Ticker']}</td><td style='padding: 12px;'>${row['Close']:.2f}</td><td style='padding: 12px; color: {color}; font-weight: bold;'>{row['% Change']:+.2f}%</td><td style='padding: 12px;'>{row['Trend']}</td></tr>"
 
+                        # 3. Build the HTML (Restoring the <img src='cid:market_chart' /> tag)
                         html_body = f"<html><body style='font-family: Arial; background-color: #ffffff; color: #333333; padding: 20px;'><div style='max-width: 650px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px;'><h2 style='color: #111111; border-bottom: 2px solid #00ffcc; padding-bottom: 10px;'>📊 Institutional Daily Market Briefing</h2><table style='width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 25px;'><thead><tr style='background-color: #f8f9fa; border-bottom: 2px solid #ddd;'><th style='padding: 12px;'>Asset Node</th><th style='padding: 12px;'>Closing Price</th><th style='padding: 12px;'>Variance</th><th style='padding: 12px;'>Direction</th></tr></thead><tbody>{table_rows_html}</tbody></table><h3 style='color: #222222;'>📈 Market Trend Visualization ({target_chart_ticker})</h3><img src='cid:market_chart' style='width: 100%; max-width: 600px; border-radius: 4px;' /><hr style='border: 0; border-top: 1px solid #eee; margin: 20px 0;' /><p style='font-size: 11px; color: #999;'>Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p></div></body></html>"
 
+                        # 4. Setup email to allow embedded images (MIMEMultipart("related"))
                         recipients = [r.strip() for r in email_input_raw.split(",") if r.strip()]
                         msg = MIMEMultipart("related")
                         msg["Subject"] = f"📊 Executive Briefing: Daily Market Intelligence ({datetime.now().strftime('%b %d')})"
@@ -546,21 +556,24 @@ with tab_logs:
                         msg.attach(msg_alt)
                         msg_alt.attach(MIMEText(html_body, "html"))
 
+                        # 5. Attach the newly created Matplotlib chart
                         with open(chart_filename, "rb") as img_file:
                             msg_image = MIMEImage(img_file.read())
                             msg_image.add_header("Content-ID", "<market_chart>")
                             msg.attach(msg_image)
 
+                        # 6. Transmit
                         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
                             server.starttls()
                             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
                             server.sendmail(EMAIL_SENDER, recipients, msg.as_string())
 
+                        # 7. Clean up the temp file
                         if os.path.exists(chart_filename): os.remove(chart_filename)
                         st.success(f"✅ Full Executive Report successfully sent to {len(recipients)} recipient(s)!")
+
                     except Exception as e:
                         st.error(f"❌ Transmission Interrupted: {str(e)}")
-
 if enable_refresh:
     time.sleep(refresh_interval)
     st.rerun()

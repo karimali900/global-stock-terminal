@@ -1,9 +1,7 @@
 FROM docker.io/library/python:3.10-slim
 
-# Install system dependencies required for Kaleido image exporting
+# Maintain the baseline font structure for chart rendering
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    libgconf-2-4 \
     libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
 

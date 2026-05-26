@@ -8,3 +8,5 @@ streamlit
 plotly
 requests
 websocket-client
+kaleido
+matplotlib==3.8.4
