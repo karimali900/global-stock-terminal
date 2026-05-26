@@ -1,10 +1,20 @@
-FROM python:3.10-slim
+FROM docker.io/library/python:3.10-slim
+
+# Install system dependencies required for Kaleido image exporting
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    libgconf-2-4 \
+    libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY stock_dashboard.py .
+# Copy your corrected dashboard filename
+COPY stock_dashboardx.py .
 
 EXPOSE 8501
-CMD ["streamlit", "run", "stock_dashboardx.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+
+CMD ["streamlit", "run", "stock_dashboardx.py", "--server.port=8501", "--server.address=0.0.0.0"]
